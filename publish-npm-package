@@ -16,6 +16,7 @@ git add .
 git commit -am '$message'
 git push
 npm install
+npm run build
 npm version $mode
 npm publish
 git sync
