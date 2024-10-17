@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+mode="$1"
+message="$2"
+
+usage="Usage: publish-npm-package <major|minor|patch> <message>"
+
+if [ -z "$mode" ]; then
+  echo "$usage"
+  exit 1
+fi
+
+echo "==> Publish package: mode=$mode, message=$message";
+
+git add .
+git commit -am '$message'
+git push
+npm install
+npm version $mode
+npm publish
+git sync
