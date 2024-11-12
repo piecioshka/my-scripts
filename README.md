@@ -1,3 +1,3 @@
 # my-scripts
 
-My scripts.
+My utility scripts
