@@ -1,0 +1,57 @@
+#!/usr/bin/env node
+
+const user = process.argv[2];
+
+if (!user) {
+  console.error('Usage: npm-get-user-packages.js <username>');
+  process.exit(1);
+}
+
+const template = ({ date, name, hasTypes }) =>
+  `- [${date.toISOString()}] ${name} ${hasTypes ? '(💙 Types)' : ''}`;
+
+function makeRequest(url) {
+  return fetch(url)
+    .then((response) => response.json())
+    .then((data) => data);
+}
+
+async function getUserPackages(username) {
+  const searchUrl = `https://registry.npmjs.org/-/v1/search?text=maintainer:${username}&size=100`;
+  const data = await makeRequest(searchUrl);
+
+  const sortedByCreated = [];
+
+  for (const package of data.objects) {
+    const packageName = package.package.name;
+    const packageUrl = `https://registry.npmjs.org/${packageName}`;
+    const packageData = await makeRequest(packageUrl);
+
+    const versions = Object.keys(packageData.time);
+    const createdAt = new Date(packageData.time[versions[0]]);
+
+    const latestVersion = packageData['dist-tags'].latest;
+    const hasTypes = packageData.versions[latestVersion].types;
+
+    sortedByCreated.push({
+      date: createdAt,
+      name: packageName,
+      hasTypes,
+    });
+  }
+
+  return sortedByCreated.sort((a, b) => a.date - b.date);
+}
+
+getUserPackages(user)
+  .then((packages) => {
+    if (packages.length === 0) {
+      console.log('No packages found');
+      return;
+    }
+
+    packages.forEach((pkg) => console.log(template(pkg)));
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+  });
