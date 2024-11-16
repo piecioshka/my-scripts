@@ -7,8 +7,14 @@ if (!user) {
   process.exit(1);
 }
 
+const displayTypeScript = () => {
+  const blueBackgroundWhiteText = '\x1b[48;2;48;120;198;38;2;255;255;255m';
+  const resetStyle = '\x1b[0m';
+  return `${blueBackgroundWhiteText} TS ${resetStyle}`;
+};
+
 const template = ({ date, name, hasTypes }) =>
-  `- [${date.toISOString()}] ${name} ${hasTypes ? '(💙 Types)' : ''}`;
+  `- [${date.toISOString()}] ${name} ${hasTypes ? displayTypeScript() : ''}`;
 
 function makeRequest(url) {
   return fetch(url)
@@ -22,8 +28,8 @@ async function getUserPackages(username) {
 
   const sortedByCreated = [];
 
-  for (const package of data.objects) {
-    const packageName = package.package.name;
+  for (const packageDef of data.objects) {
+    const packageName = packageDef.package.name;
     const packageUrl = `https://registry.npmjs.org/${packageName}`;
     const packageData = await makeRequest(packageUrl);
 
