@@ -8,7 +8,6 @@ if [ -z "$command" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 source "$script_dir/__colors.sh"
 
 for d in ./*/
