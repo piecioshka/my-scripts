@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+command="${1}"
+
+__COLOR_GREEN="\033[0;32m"
+__COLOR_BLUE="\033[0;34m"
+__COLOR_RESET="\033[0m"
+
+__set_color() {
+  echo -ne "$1"
+}
+
+for d in ./*/
+do
+  if [ -d "$d" ]; then
+    cd "$d"
+    echo -n "==> "
+    __set_color "${__COLOR_GREEN}"
+    echo -n "$d"
+    __set_color "${__COLOR_BLUE}"
+    echo -n " > "
+    __set_color "${__COLOR_RESET}"
+    echo -e "$command"
+    eval "$command"
+    cd ".."
+    echo ""
+  fi
+done
