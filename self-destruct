@@ -8,7 +8,7 @@ case $choice in
   [yY])
     cd ..
     rm -rf "$name"
-    echo "[+] Directory \"$name\" was removed successfully!"
+    echo "Directory \"$name\" was removed successfully!"
     echo -e "\nWARNING: Remember to change directory!"
     ;;
   *)

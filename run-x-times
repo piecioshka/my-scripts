@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+x=$1
+command=$2
+
+if [ -z "$command" ]; then
+  echo "Usage: run-x-times <times> \"<command>\""
+  exit 1
+fi
+
+echo "Running $x times a command: $command"
+
+for i in $(seq 1 $x)
+do
+  eval "$command"
+done
