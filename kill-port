@@ -3,7 +3,7 @@
 port=$1
 
 if [ -z "$port" ]; then
-  echo "Usage: kill-port <port>"
+  echo "Usage: $(basename $0) <port>"
   exit 1
 fi
 

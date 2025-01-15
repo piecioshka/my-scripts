@@ -20,9 +20,15 @@ set -gx PATH $HOME/projects/my-scripts/ $PATH
 ## Commands
 
 - `kill-port <port>` — Kill process running on port
-- `npm-release-package` - Release package to npm registry + Push tags to origin + Synchronize with GitHub
+- `new-guide <name>` — Create new guide
+- `new-macos-app <name>` — Create new macOS app
+- `new-project <name>` — Create new project
+- `new-react-app <name>` — Create new React app
+- `new-slides <name>` — Create new slides
 - `npm-get-user-packages <username>` — Display projects of user from npm registry
+- `npm-release-package` - Release package to npm registry + Push tags to origin + Synchronize with GitHub
 - `run-on-each-dir` — Run command on each directory
 - `run-x-times` — Run command x times
 - `self-destruct` — Remove all files from current directory
 - `untar-all-files-in-dir` — Untar all files in directory
+- `what-happened` — Display last changes in current directory

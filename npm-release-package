@@ -3,10 +3,8 @@
 mode="$1"
 message="$2"
 
-usage="Usage: npm-release-package <major|minor|patch> [message]"
-
 if [ -z "$mode" ]; then
-  echo "$usage"
+  echo "Usage: $(basename $0) <major|minor|patch> [message]"
   exit 1
 fi
 

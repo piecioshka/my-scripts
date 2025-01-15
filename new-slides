@@ -2,9 +2,11 @@
 
 source "__shared.sh"
 
-__new_slides() {
-    : ${1? "Usage: new-slides SLIDES_TITLE"}
-    __create_project_by ${1} 'template-slides'
-}
+name=$1
 
-__new_slides $1
+if [ -z "$name" ]; then
+  echo "Usage: $(basename $0) <name>"
+  exit 1
+fi
+
+__create_project_by $name 'template-slides'
