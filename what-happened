@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# Display what is happen in repository in that moment.
+watch -n 5 --color "git status -sb"
