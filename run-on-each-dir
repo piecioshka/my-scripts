@@ -7,13 +7,9 @@ if [ -z "$command" ]; then
   exit 1
 fi
 
-__COLOR_GREEN="\033[0;32m"
-__COLOR_BLUE="\033[0;34m"
-__COLOR_RESET="\033[0m"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-__set_color() {
-  echo -ne "$1"
-}
+source "$script_dir/__colors.sh"
 
 for d in ./*/
 do
