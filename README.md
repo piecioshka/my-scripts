@@ -2,6 +2,21 @@
 
 My utility scripts
 
+## Installation
+
+```bash
+cd ~/projects/ # or any workspace what you use
+git clone git@github.com:piecioshka/my-scripts.git
+
+# Bash: please add to `~/.bash_profile`
+export PATH="$HOME/projects/my-scripts/:$PATH"
+
+# Fish: please add to `~/.config/fish/config.fish`
+set -gx PATH $HOME/projects/my-scripts/ $PATH
+```
+
+**TIP**: When you modify shell configs, please restart the terminal to apply new settings.
+
 ## Commands
 
 - `kill-port <port>` — Kill process running on port
