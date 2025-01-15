@@ -9,12 +9,16 @@ function __set_color {
   echo -ne "$1"
 }
 
-# Function to replace content in a file
-function __replace_file_content {
-  local search=$1
-  local replace=$2
-  local file=$3
-  sed -i '' "s/${search}/${replace}/g" "${file}"
+# Replace content in passed filename.
+__replace_file_content() {
+    from="${1}"
+    to="${2}"
+    filename="${3}"
+    input="s/${from}/${to}/g";
+    suffix="-new"
+
+    sed -i ${suffix} ${input} ${filename}
+    rm "${filename}${suffix}"
 }
 
 function __create_project_by {
