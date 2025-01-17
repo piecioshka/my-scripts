@@ -20,6 +20,7 @@ set -gx PATH $HOME/projects/my-scripts/ $PATH
 ## Commands
 
 - `kill-port <port>` — Kill process running on port
+- `new-cli-app <name>` — Create new CLI app
 - `new-guide <name>` — Create new guide
 - `new-macos-app <name>` — Create new macOS app
 - `new-project <name>` — Create new project

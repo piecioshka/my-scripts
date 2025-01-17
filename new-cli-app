@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+source "__shared.sh"
+
+name=$1
+
+if [ -z "$name" ]; then
+  echo "Usage: $(basename $0) <name>"
+  exit 1
+fi
+
+__create_project_by $name 'template-cli-app'
