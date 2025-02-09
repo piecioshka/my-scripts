@@ -9,13 +9,13 @@ if [ -z "$mode" ]; then
 fi
 
 if [ -n "$message" ]; then
-  git add .
-  git commit -am "$message"
+  __print_command_and_eval "git add ."
+  __print_command_and_eval "git commit -am "$message""
 fi
 
-git push
-npm ci
-npm run build --if-present
-npm version $mode
-npm publish
-git sync
+__print_command_and_eval "git push"
+__print_command_and_eval "npm ci"
+__print_command_and_eval "npm run build --if-present"
+__print_command_and_eval "npm version $mode"
+__print_command_and_eval "npm publish"
+__print_command_and_eval "git sync"

@@ -20,6 +20,12 @@ function __print_command {
   echo -e "${__COLOR_BLUE_LIGHT}==> ${__COLOR_GREEN}${folder_name}${__COLOR_BLUE} > ${__COLOR_RESET}$command"
 }
 
+function __print_command_and_eval {
+  __print_command "$1"
+  eval "$1"
+  echo ""
+}
+
 function __replace_file_content {
     from="${1}"
     to="${2}"
