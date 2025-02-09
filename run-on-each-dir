@@ -16,9 +16,7 @@ for d in ./*/
 do
   if [ -d "$d" ]; then
     cd "$d"
-    __print_command "$command"
-    eval "$command"
+    __print_command_and_eval "$command"
     cd ".."
-    echo ""
   fi
 done
