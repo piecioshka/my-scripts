@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+source "__shared.sh"
+
 times=$1
 command=$2
 
@@ -12,5 +14,5 @@ echo "Running $times times a command: $command"
 
 for i in $(seq 1 $times)
 do
-  eval "$command"
+  __print_command_and_eval "$command"
 done
