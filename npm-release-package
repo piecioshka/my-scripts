@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+source "__shared.sh"
+
 mode="$1"
 message="$2"
 
