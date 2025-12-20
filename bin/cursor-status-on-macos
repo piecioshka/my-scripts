@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# macOS-focused. Compares:
+# - Cursor app version
+# - VSCode base version embedded in Cursor
+# - Installed VSCode version
+# Prints a short summary and status (behind/ahead/equal).
+
+# Paths (adjust if apps are elsewhere)
+CURSOR_APP="/Applications/Cursor.app"
+VSCODE_APP="/Applications/Visual Studio Code.app"
+CURSOR_PRODUCT_JSON="$CURSOR_APP/Contents/Resources/app/product.json"
+
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+read_info_plist_ver() {
+  # $1: app path
+  defaults read "$1/Contents/Info" CFBundleShortVersionString 2>/dev/null || true
+}
+
+get_cursor_app_ver() {
+  if has_cmd cursor; then
+    # cursor --version prints multiple lines; first is version
+    cursor --version 2>/dev/null | head -n1 || true
+  else
+    read_info_plist_ver "$CURSOR_APP"
+  fi
+}
+
+get_vscode_app_ver() {
+  if has_cmd code; then
+    code -v 2>/dev/null | head -n1 || true
+  else
+    read_info_plist_ver "$VSCODE_APP"
+  fi
+}
+
+get_cursor_base_vscode_ver() {
+  if [[ -f "$CURSOR_PRODUCT_JSON" ]]; then
+    if has_cmd jq; then
+      jq -r '.vscodeVersion // empty' <"$CURSOR_PRODUCT_JSON"
+    else
+      # Fallback: grep the key (simple, robust enough)
+      grep -oE '"vscodeVersion"\s*:\s*"[^"]+"' "$CURSOR_PRODUCT_JSON" | sed -E 's/.*"vscodeVersion"\s*:\s*"([^"]+)".*/\1/' | head -n1
+    fi
+  fi
+}
+
+main() {
+  local cursor_ver vscode_ver cursor_vscode_base
+  cursor_ver="$(get_cursor_app_ver || true)"
+  vscode_ver="$(get_vscode_app_ver || true)"
+  cursor_vscode_base="$(get_cursor_base_vscode_ver || true)"
+
+  echo "Cursor.app:           ${cursor_ver:-unknown}"
+  echo "Cursor base VSCode:   ${cursor_vscode_base:-unknown}"
+  echo "VSCode.app:           ${vscode_ver:-unknown}"
+}
+
+main "$@"
