@@ -39,7 +39,7 @@ main() {
     map["$value"]+="$file "
   done
 
-  echo -e "\r${__CLEAR_LINE}Grouped files by ${__COLOR_GREEN}$tag${__COLOR_RESET}:"
+  echo -e "\r${__CLEAR_LINE}Files grouped by ${__COLOR_GREEN}$tag${__COLOR_RESET}:"
   for key in "${!map[@]}"
   do
     local size=$(echo "${map["$key"]}" | wc -w | tr -d '[:space:]')
