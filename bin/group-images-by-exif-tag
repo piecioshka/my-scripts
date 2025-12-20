@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/../shared/__colors.sh"
+
+usage() {
+  echo "Usage: $(basename $0) <tag>"
+  echo -e "\nExamples:
+    $ $(basename $0) Aperture
+    $ $(basename $0) Artist
+    $ $(basename $0) CanonImageType
+    $ $(basename $0) CanonModelID
+    $ $(basename $0) FocalLength
+    $ $(basename $0) HyperfocalDistance
+    $ $(basename $0) LensID
+    "
+  exit 1
+}
+
+if [ "${1:-}" = "" ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+fi
+
+main() {
+  local tag="$1"
+  local files=$(ls)
+  local length=$(ls -1 | wc -l | tr -d '[:space:]')
+  local i=0
+  local -A map=()
+
+  for file in $files
+  do
+    i=$((i=i+1))
+    local progress=$((i*100/length))
+    echo -ne "\r${__COLOR_GREEN}$(printf '%3d' "$progress")% ${__COLOR_GRAY_LIGHT}[$i/$length]${__COLOR_RESET} Processing $file ... "
+    local value=$(exiftool -p "\$$tag" "$file")
+    map["$value"]+="$file "
+  done
+
+  echo -e "\r${__CLEAR_LINE}Grouped files by ${__COLOR_GREEN}$tag${__COLOR_RESET}:"
+  for key in "${!map[@]}"
+  do
+    local size=$(echo "${map["$key"]}" | wc -w | tr -d '[:space:]')
+    local label=$([ "$size" -eq 1 ] && echo "file" || echo "files")
+    echo -e "\n${__COLOR_GREEN}$tag${__COLOR_RESET}: ${key}${__COLOR_GRAY_LIGHT} ($size $label)${__COLOR_RESET}\n"
+    for f in ${map["$key"]}
+    do
+      echo "- $f"
+    done
+  done
+}
+
+main "$@"

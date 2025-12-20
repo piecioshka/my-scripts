@@ -20,6 +20,7 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 ## Commands
 
 - `cursor-status-on-macos` - Identify installed version of VSCode and Cursor AI
+- `group-images-by-exif-tag` — Group images by EXIF tag value (e.g., FocalLength, ISO, etc., requires `exiftool`)
 - `kill-port <port>` — Kill process running on port
 - `new-cli-app <name>` — Create new CLI app
 - `new-guide <name>` — Create new guide

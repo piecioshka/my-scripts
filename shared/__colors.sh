@@ -5,6 +5,7 @@
 s="\033["
 e="m"
 
+__CLEAR_LINE="${s}K"
 __COLOR_RESET="${s}0${e}"
 __COLOR_RESET_BACKGROUND="${s}${e}"
 __COLOR_BOLD="${s}1${e}"
