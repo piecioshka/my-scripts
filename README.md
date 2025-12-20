@@ -34,3 +34,16 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 - `self-destruct` — Remove all files from current directory
 - `untar-all-files-in-dir` — Untar all files in directory
 - `what-happened` — Display last changes in current directory
+
+## Demos
+
+Recorded with [vhs](https://github.com/charmbracelet/vhs).
+
+### `group-images-by-exif-tag`
+
+```bash
+group-images-by-exif-tag FocalLength
+group-images-by-exif-tag Aperture
+```
+
+![](demo/group-images-by-exif-tag.gif)
