@@ -24,6 +24,11 @@ if [ "${1:-}" = "" ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   usage
 fi
 
+if ! command -v exiftool >/dev/null 2>&1; then
+  echo -e "${__COLOR_RED}Error:${__COLOR_RESET} exiftool command not found. Install it first." >&2
+  exit 1
+fi
+
 main() {
   local tag="$1"
   local files=$(ls)
