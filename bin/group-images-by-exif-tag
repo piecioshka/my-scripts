@@ -14,6 +14,7 @@ usage() {
     $ $(basename $0) CanonModelID
     $ $(basename $0) FocalLength
     $ $(basename $0) HyperfocalDistance
+    $ $(basename $0) ISO
     $ $(basename $0) LensID
     "
   exit 1
@@ -40,16 +41,17 @@ main() {
   done
 
   echo -e "\r${__CLEAR_LINE}Files grouped by ${__COLOR_GREEN}$tag${__COLOR_RESET}:"
-  for key in "${!map[@]}"
-  do
-    local size=$(echo "${map["$key"]}" | wc -w | tr -d '[:space:]')
+
+  while IFS= read -r key; do
+    local images="${map["$key"]}"
+    local size=$(echo "$images" | wc -w | tr -d '[:space:]')
     local label=$([ "$size" -eq 1 ] && echo "file" || echo "files")
     echo -e "\n${__COLOR_GREEN}$tag${__COLOR_RESET}: ${key}${__COLOR_GRAY_LIGHT} ($size $label)${__COLOR_RESET}\n"
-    for f in ${map["$key"]}
+    for f in $images
     do
       echo "- $f"
     done
-  done
+  done < <(printf '%s\n' "${!map[@]}" | sort)
 }
 
 main "$@"
