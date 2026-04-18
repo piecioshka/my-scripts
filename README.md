@@ -33,6 +33,7 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 - `run-x-times` — Run command x times
 - `self-destruct` — Remove all files from current directory
 - `untar-all-files-in-dir` — Untar all files in directory
+- `url-check` — Check whether URLs from a file or stdin respond with HTTP 2xx/3xx
 - `what-happened` — Display last changes in current directory
 
 ## Demos
@@ -47,3 +48,12 @@ group-images-by-exif-tag Aperture
 ```
 
 ![](demo/group-images-by-exif-tag.gif)
+
+### `url-check`
+
+```bash
+url-check -f links.txt
+echo "https://github.com" | url-check
+```
+
+![](demo/url-check.gif)

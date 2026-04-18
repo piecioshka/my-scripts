@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Usage:
+#   url-check -f links.txt                        # check links from a file
+#   echo "https://example.com" | url-check        # check links from stdin
+#   CONCURRENCY=20 url-check -f links.txt         # parallelism (default: 10)
+#   TIMEOUT=30 url-check -f links.txt             # per-request timeout in seconds (default: 15)
+#   url-check --help                              # show help
+#
+# Checks that each URL responds with HTTP 2xx/3xx (follows redirects).
+# Input: one URL per line; lines starting with # and blank lines are ignored.
+# Exit code: 0 if all OK, 1 if any FAIL.
+
+set -u
+
+INPUT_FILE=""
+CONCURRENCY="${CONCURRENCY:-10}"
+TIMEOUT="${TIMEOUT:-15}"
+
+show_usage() {
+    sed -n '2,/^$/p' "$0" | sed -E 's/^# ?//'
+}
+
+if [[ $# -eq 0 && -t 0 ]]; then
+    show_usage
+    exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--file)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --file requires a path" >&2; exit 1; }
+            INPUT_FILE="$2"; shift 2 ;;
+        -h|--help)
+            show_usage; exit 0 ;;
+        *)
+            echo "Unknown argument: $1 (use -f <file> or --help)" >&2; exit 1 ;;
+    esac
+done
+
+# colors (tty only)
+if [[ -t 1 ]]; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'
+    C_GREEN=$'\033[32m'; C_RED=$'\033[31m'; C_DIM=$'\033[90m'
+else
+    C_RESET=""; C_BOLD=""; C_GREEN=""; C_RED=""; C_DIM=""
+fi
+
+paint_status() {
+    local status="$1"
+    local padded
+    printf -v padded "%-6s" "$status"
+    case "$status" in
+        OK)   printf "%s%s%s" "$C_GREEN" "$padded" "$C_RESET" ;;
+        FAIL) printf "%s%s%s" "$C_RED"   "$padded" "$C_RESET" ;;
+        *)    printf "%s%s%s" "$C_DIM"   "$padded" "$C_RESET" ;;
+    esac
+}
+
+check_url() {
+    local url="$1"
+    local code
+    code=$(curl -s -o /dev/null -L -w "%{http_code}" \
+        --max-time "$TIMEOUT" \
+        -A "Mozilla/5.0 (url-check)" \
+        "$url" 2>/dev/null)
+    code="${code:-000}"
+
+    if [[ "$code" =~ ^(2|3)[0-9][0-9]$ ]]; then
+        printf "OK\t%s\t%s\n" "$code" "$url"
+    else
+        printf "FAIL\t%s\t%s\n" "$code" "$url"
+    fi
+}
+export -f check_url
+export TIMEOUT
+
+input_source() {
+    if [[ -n "$INPUT_FILE" ]]; then
+        if [[ ! -f "$INPUT_FILE" ]]; then
+            echo "ERROR: file does not exist: $INPUT_FILE" >&2
+            exit 1
+        fi
+        echo "${C_BOLD}Source:${C_RESET} file $INPUT_FILE" >&2
+        cat "$INPUT_FILE"
+        return
+    fi
+
+    if [[ ! -t 0 ]]; then
+        echo "${C_BOLD}Source:${C_RESET} stdin" >&2
+        cat
+        return
+    fi
+
+    show_usage
+    exit 1
+}
+
+urls=$(input_source | grep -vE '^[[:space:]]*(#|$)' | grep -Eo 'https?://[^ ]+')
+
+if [[ -z "$urls" ]]; then
+    echo "No URLs found."
+    exit 0
+fi
+
+total=$(echo "$urls" | wc -l | tr -d ' ')
+echo "${C_BOLD}Checking${C_RESET} $total links (concurrency=$CONCURRENCY, timeout=${TIMEOUT}s)..."
+echo
+
+results=$(echo "$urls" | xargs -n 1 -P "$CONCURRENCY" -I {} bash -c 'check_url "$@"' _ {})
+
+# print sorted
+echo "$results" | sort | while IFS=$'\t' read -r status code url; do
+    [[ -z "$status" ]] && continue
+    printf "%s  %5s  %s\n" "$(paint_status "$status")" "$code" "$url"
+done
+
+ok=$(echo "$results" | grep -c '^OK' || true)
+fail=$(echo "$results" | grep -c '^FAIL' || true)
+
+echo
+echo "${C_BOLD}Summary:${C_RESET} OK=$ok  FAIL=$fail  TOTAL=$total"
+
+[[ "$fail" -gt 0 ]] && exit 1
+exit 0
