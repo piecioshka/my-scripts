@@ -42,16 +42,12 @@ function __create_project_by {
   type="${2}";
 
   # 1. Create new directory
-  mkdir ${name}
-
-  # INFO: $? reads the exit status of the last command executed
-  # http://tldp.org/LDP/abs/html/exit-status.html
-  if [ $? -ne 0 ]; then
-    echo 'ERROR: Cloning Git repository failed'
-    return $?
+  if ! mkdir "${name}"; then
+    echo 'ERROR: Creating directory failed'
+    return 1
   fi
 
-  cd ${name}
+  cd "${name}" || return 1
 
   homedir=~
   eval homedir=${homedir} # workaround for translate ~ to user home directory
@@ -69,10 +65,10 @@ function __create_project_by {
   __print_action "Replacing: from INSERT_NAME to \"$name\""
   files=(README.md package.json package-lock.json index.html src/index.html .changelogrc slides.md bin/cli.js electron-builder.json5)
 
-  for FILE in ${files[*]}
+  for FILE in "${files[@]}"
   do
     if [ -s "${FILE}" ]; then
-      __replace_file_content "INSERT_NAME" ${name} ${FILE}
+      __replace_file_content "INSERT_NAME" "${name}" "${FILE}"
     fi
   done
 
