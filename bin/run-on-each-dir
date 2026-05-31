@@ -13,8 +13,8 @@ fi
 for d in ./*/
 do
   if [ -d "$d" ]; then
-    cd "$d"
+    cd "$d" || continue
     __print_command_and_eval "$command"
-    cd ".."
+    cd ".." || exit 1
   fi
 done
