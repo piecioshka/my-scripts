@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Skrypt znajduje się w bin/, kolory w ../shared/
+source "${script_dir}/../shared/__colors.sh"
+
+OS="unknown"
+case "$(uname -s)" in
+    Darwin*) OS="macos" ;;
+    Linux*)  OS="linux" ;;
+    MSYS*|MINGW*|CYGWIN*) OS="windows" ;;
+esac
+
+# Cache PATH check results
+function has_cmd() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+function clean_version() {
+    local text="$1"
+    # Szuka pierwszego ciągu znaków, który wygląda jak wersja (np. 1.2.3, 0.46.0-beta)
+    local version
+    version=$(echo "$text" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?' | head -n1 || true)
+    
+    if [ -n "$version" ]; then
+        echo "$version"
+    else
+        # Fallback: jeśli nie znaleziono wzorca, usuwamy tylko tekst w nawiasach i zbędne słowa
+        echo "$text" | sed -E 's/^[a-zA-Z -]+(version )?(is )?//g; s/ \(.*\)//g'
+    fi
+}
+
+function get_app_version() {
+    local name=$1
+    local cmd=$2
+    local mac_path=$3
+    local win_path=$4
+    local lin_path=$5
+
+    echo -ne "${__COLOR_BLUE}${name}:${__COLOR_RESET} "
+
+    # 1. Sprawdź czy komenda jest w PATH
+    if has_cmd "$cmd"; then
+        local version
+        version=$("$cmd" --version 2>&1 | head -n1 || echo "installed")
+        echo -e "${__COLOR_GREEN}$(clean_version "$version")${__COLOR_RESET}"
+        return
+    fi
+
+    # 2. Sprawdź specyficzne dla OS ścieżki instalacji (GUI)
+    case "$OS" in
+        macos)
+            if [ -n "$mac_path" ] && [ -d "$mac_path" ]; then
+                local ver
+                ver=$(defaults read "${mac_path}/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "installed")
+                echo -e "${__COLOR_GREEN}${ver}${__COLOR_RESET}"
+                return
+            fi
+            ;;
+        windows)
+            if [ -n "$win_path" ]; then
+                local expanded_path
+                expanded_path=$(echo "$win_path" | sed 's/%LOCALAPPDATA%/\/c\/Users\/'"$USER"'\/AppData\/Local/g; s/%APPDATA%/\/c\/Users\/'"$USER"'\/AppData\/Roaming/g; s/%USERPROFILE%/\/c\/Users\/'"$USER"'/g')
+                if [ -d "$expanded_path" ] || [ -f "$expanded_path" ]; then
+                    echo -e "${__COLOR_GREEN}installed${__COLOR_RESET}"
+                    return
+                fi
+            fi
+            ;;
+        linux)
+            if [ -n "$lin_path" ] && [ -e "$lin_path" ]; then
+                echo -e "${__COLOR_GREEN}installed${__COLOR_RESET}"
+                return
+            fi
+            ;;
+    esac
+
+    echo -e "${__COLOR_GRAY_LIGHT}not found${__COLOR_RESET}"
+}
+
+function check_agent() {
+    local name=$1
+    local cmd=$2
+    local version_cmd=${3:-"$cmd --version"}
+
+    echo -ne "${__COLOR_BLUE}${name}:${__COLOR_RESET} "
+    if has_cmd "$cmd"; then
+        local version
+        version=$($version_cmd 2>&1 | head -n1 || echo "installed")
+        echo -e "${__COLOR_GREEN}$(clean_version "$version")${__COLOR_RESET}"
+    else
+        echo -e "${__COLOR_GRAY_LIGHT}not found${__COLOR_RESET}"
+    fi
+}
+
+function check_gh_extension() {
+    local name=$1
+    local ext=$2
+
+    echo -ne "${__COLOR_BLUE}${name}:${__COLOR_RESET} "
+    if has_cmd gh; then
+        if gh extension list | grep -q "$ext"; then
+            echo -e "${__COLOR_GREEN}installed (gh extension)${__COLOR_RESET}"
+        else
+            echo -e "${__COLOR_GRAY_LIGHT}not found${__COLOR_RESET}"
+        fi
+    else
+        echo -e "${__COLOR_GRAY_LIGHT}gh not found${__COLOR_RESET}"
+    fi
+}
+
+echo -e "${__COLOR_BOLD}AI Agents detection (${OS})${__COLOR_RESET}\n"
+
+# SEKCOJA: Desktop Apps
+echo -e "${__COLOR_YELLOW}Desktop Applications:${__COLOR_RESET}"
+get_app_version "Antigravity" "agy" \
+    "/Applications/Antigravity.app" \
+    "%LOCALAPPDATA%/Programs/Antigravity" \
+    "/opt/Antigravity/antigravity"
+
+get_app_version "ChatGPT" "chatgpt" \
+    "/Applications/ChatGPT.app" \
+    "%LOCALAPPDATA%/Programs/ChatGPT" \
+    ""
+
+get_app_version "Cursor" "cursor" \
+    "/Applications/Cursor.app" \
+    "%LOCALAPPDATA%/Programs/cursor" \
+    "/opt/Cursor/cursor"
+
+get_app_version "GitHub Copilot" "copilot" \
+    "/Applications/GitHub Copilot.app" \
+    "%LOCALAPPDATA%/Programs/github-copilot-app" \
+    ""
+
+get_app_version "Jan" "jan" \
+    "/Applications/Jan.app" \
+    "%LOCALAPPDATA%/Programs/Jan" \
+    "~/.local/bin/jan"
+
+get_app_version "Perplexity" "perplexity-cli" \
+    "/Applications/Perplexity.app" \
+    "%LOCALAPPDATA%/Programs/Perplexity" \
+    ""
+
+get_app_version "Windsurf" "windsurf" \
+    "/Applications/Windsurf.app" \
+    "%LOCALAPPDATA%/Programs/Windsurf" \
+    "/opt/Windsurf/windsurf"
+
+# SEKCOJA: CLI Agents
+echo -e "\n${__COLOR_YELLOW}CLI Agents:${__COLOR_RESET}"
+check_agent "Aider" "aider"
+check_agent "Claude Code" "claude"
+check_agent "Cline" "cline"
+check_agent "Codex" "codex"
+check_agent "Gemini CLI" "gemini"
+check_gh_extension "GitHub Copilot CLI" "copilot"
+check_agent "Mistral CLI" "vibe"
+check_agent "Open Code" "opencode"
+
+# SEKCOJA: Additional Tools
+echo -e "\n${__COLOR_YELLOW}Additional Tools:${__COLOR_RESET}"
+check_agent "Aicommits" "aicommits"
+check_agent "Fabric" "fabric"
+check_agent "Mods" "mods"
+check_agent "Ollama" "ollama"
+check_agent "Open Interpreter" "interpreter"
+check_agent "ShellGPT" "sgpt"
+
+echo -e "\n${__COLOR_GRAY_LIGHT}Done.${__COLOR_RESET}"

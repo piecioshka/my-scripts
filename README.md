@@ -19,26 +19,46 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 
 ## Commands
 
+### AI & Inspection
+
+- `agents` - Identify installed AI agents
 - `cursor-status-on-macos` - Identify installed version of VSCode and Cursor AI
-- `group-images-by-exif-tag` — Group images by EXIF tag value (e.g., FocalLength, ISO, etc., requires `exiftool`)
-- `kill-port <port>` — Kill process running on port
+- `what-happened` — Display last changes in current directory
+
+### Scaffolding
+
 - `new-cli-app <name>` — Create new CLI app
 - `new-guide <name>` — Create new guide
 - `new-macos-app <name>` — Create new macOS app
 - `new-project <name>` — Create new project
 - `new-react-app <name>` — Create new React app
 - `new-slides <name>` — Create new slides
+
+### Automation & Workflow
+
 - `npm-release-package` — Release package to npm registry + Push tags to origin + Synchronize with GitHub
 - `run-on-each-dir` — Run command on each directory
 - `run-x-times` — Run command x times
+
+### File & System
+
+- `group-images-by-exif-tag` — Group images by EXIF tag value (e.g., FocalLength, ISO, etc., requires `exiftool`)
+- `kill-port <port>` — Kill process running on port
 - `self-destruct` — Remove all files from current directory
 - `untar-all-files-in-dir` — Untar all files in directory
 - `url-check` — Check whether URLs from a file or stdin respond with HTTP 2xx/3xx
-- `what-happened` — Display last changes in current directory
 
 ## Demos
 
 Recorded with [vhs](https://github.com/charmbracelet/vhs).
+
+### `agents`
+
+```bash
+agents
+```
+
+![](demo/agents.gif)
 
 ### `group-images-by-exif-tag`
 
