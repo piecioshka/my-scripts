@@ -140,6 +140,11 @@ get_app_version "Jan" "jan" \
     "%LOCALAPPDATA%/Programs/Jan" \
     "~/.local/bin/jan"
 
+get_app_version "LM Studio" "lms" \
+    "/Applications/LM Studio.app" \
+    "%LOCALAPPDATA%/Programs/LM Studio" \
+    "~/.local/bin/lms"
+
 get_app_version "Perplexity" "perplexity-cli" \
     "/Applications/Perplexity.app" \
     "%LOCALAPPDATA%/Programs/Perplexity" \
