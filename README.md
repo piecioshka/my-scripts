@@ -77,3 +77,7 @@ echo "https://github.com" | url-check
 ```
 
 ![](demo/url-check.gif)
+
+## License
+
+[The MIT License](http://piecioshka.mit-license.org) @ 2026
