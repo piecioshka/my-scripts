@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# Usage:
+#   disk-cleanup                # DRY-RUN: show what and how much would be freed
+#   disk-cleanup --force        # actually delete caches
+#   disk-cleanup --group pkg    # analyze only one group (see below)
+#   disk-cleanup --help         # show help
+#
+#   Groups (--group / -g), default: all groups
+#     - pkg    npm, yarn, pnpm, bun, brew, docker
+#     - macos  Xcode DerivedData, CocoaPods
+#     - dev    pip, go, cargo, gradle, Playwright, Puppeteer
+#     - node   node_modules under ~/projects*
+#     - next   .next build caches under ~/projects*
+#
+#   PROJECTS_GLOB="$HOME/work*" disk-cleanup   # scan other dirs for node_modules/.next (default: ~/projects*)
+#
+# Frees up disk space by clearing developer and system caches: npm, brew, docker,
+# yarn/pnpm/bun, macOS system caches, other dev caches (pip, go, cargo, gradle,
+# Playwright, Puppeteer), plus node_modules and .next under ~/projects*.
+# Missing tools are skipped.
+# Dry-run by default; nothing is deleted without --force.
+
+set -u
+
+FORCE=0
+GROUP=""   # pusty = wszystkie grupy; inaczej jedna z: pkg macos dev node next
+# Glob katalogów przeszukiwanych pod node_modules/.next (domyślnie wszystkie ~/projects*).
+PROJECTS_GLOB="${PROJECTS_GLOB:-$HOME/projects*}"
+
+# Suma odzyskiwanych kilobajtów (do końcowego podsumowania).
+total_kb=0
+
+show_usage() {
+    sed -n '2,/^$/p' "$0" | sed -E 's/^# ?//'
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--force)
+            FORCE=1; shift ;;
+        -g|--group)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --group requires a name (pkg, macos, dev, node, next)" >&2; exit 1; }
+            GROUP="$2"; shift 2 ;;
+        -h|--help)
+            show_usage; exit 0 ;;
+        *)
+            echo "Unknown argument: $1 (use --force, --group or --help)" >&2; exit 1 ;;
+    esac
+done
+
+case "$GROUP" in
+    ""|pkg|macos|dev|node|next) ;;
+    *)
+        echo "ERROR: unknown group: $GROUP (use pkg, macos, dev, node or next)" >&2; exit 1 ;;
+esac
+
+# Czy dana grupa ma być uruchomiona? Pusty $GROUP = wszystkie.
+want_group() {
+    [[ -z "$GROUP" || "$GROUP" == "$1" ]]
+}
+
+# colors (tty only)
+if [[ -t 1 ]]; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'
+    C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_RED=$'\033[31m'; C_DIM=$'\033[90m'
+else
+    C_RESET=""; C_BOLD=""; C_GREEN=""; C_YELLOW=""; C_RED=""; C_DIM=""
+fi
+
+has_cmd() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Rozmiar katalogu w kilobajtach (0 gdy nie istnieje, pusty lub gdy du zawiedzie).
+# Zawsze zwraca liczbę — inaczej $((kb + $(dir_size_kb ...))) rzuca błąd składni.
+dir_size_kb() {
+    local path="$1"
+    [[ -e "$path" ]] || { echo 0; return; }
+    local kb
+    kb=$(du -sk "$path" 2>/dev/null | cut -f1)
+    echo "${kb:-0}"
+}
+
+# Rozmiar czytelny dla człowieka (MB/GB) z liczby kilobajtów.
+human_size() {
+    local kb="$1"
+    awk -v kb="$kb" 'BEGIN {
+        if (kb >= 1048576) printf "%.1f GB", kb / 1048576;
+        else if (kb >= 1024) printf "%.0f MB", kb / 1024;
+        else printf "%d KB", kb;
+    }'
+}
+
+# Zamień rozmiar w formacie brew ("24.0GB", "500MB", "1.2KB", "900B") na KB.
+# Zwraca 0, gdy nie uda się sparsować.
+brew_size_to_kb() {
+    awk '{
+        for (i = 1; i <= NF; i++) {
+            if ($i ~ /^[0-9.]+[KMGT]?B$/) {
+                num = $i; sub(/[KMGT]?B$/, "", num);
+                unit = $i; sub(/^[0-9.]+/, "", unit);
+                if (unit == "B")  { print int(num / 1024); exit }
+                if (unit == "KB") { print int(num); exit }
+                if (unit == "MB") { print int(num * 1024); exit }
+                if (unit == "GB") { print int(num * 1048576); exit }
+                if (unit == "TB") { print int(num * 1073741824); exit }
+            }
+        }
+        print 0
+    }'
+}
+
+# Zgłoś kategorię o znanym rozmiarze (w KB): dolicz do sumy, wypisz wiersz raportu,
+# a przy --force wykonaj komendę czyszczącą.
+#   report_size <label> <clean-command> <kb>
+report_size() {
+    local label="$1" clean_cmd="$2" kb="$3"
+    total_kb=$((total_kb + kb))
+
+    local size; size="$(human_size "$kb")"
+
+    if [[ "$FORCE" -eq 1 ]]; then
+        printf "  %s%-22s%s %s%s%s\n" "$C_BOLD" "$label" "$C_RESET" "$C_DIM" "$size" "$C_RESET"
+        eval "$clean_cmd" >/dev/null 2>&1 || true
+    else
+        printf "  %s[DRY-RUN]%s %-22s %s%s%s\n" "$C_YELLOW" "$C_RESET" "$label" "$C_DIM" "$size" "$C_RESET"
+    fi
+}
+
+# Zgłoś kategorię, licząc rozmiar ze wskazanych ścieżek (du). Rozmiar PRZED usunięciem.
+#   report <label> <clean-command> <path> [path...]
+report() {
+    local label="$1"; shift
+    local clean_cmd="$1"; shift
+
+    local kb=0 p
+    for p in "$@"; do
+        kb=$((kb + $(dir_size_kb "$p")))
+    done
+    report_size "$label" "$clean_cmd" "$kb"
+}
+
+section() {
+    echo
+    echo "${C_BOLD}$1${C_RESET}"
+}
+
+# Skan katalogów per-projekt (node_modules, .next) w PROJECTS_GLOB: raportuje
+# każde trafienie z rozmiarem, sumuje subtotal do total_kb, a przy --force usuwa.
+#   scan_projects <find-name>   (np. node_modules albo .next)
+scan_projects() {
+    local find_name="$1"
+
+    # Rozwiń glob do listy istniejących katalogów (nullglob, żeby przy braku
+    # dopasowań nie został literalny wzorzec). Zostaw tylko katalogi.
+    shopt -s nullglob
+    local roots=() d
+    for d in $PROJECTS_GLOB; do
+        [[ -d "$d" ]] && roots+=("$d")
+    done
+    shopt -u nullglob
+
+    if [[ "${#roots[@]}" -eq 0 ]]; then
+        echo "  ${C_DIM}no directories match $PROJECTS_GLOB, skipped${C_RESET}"
+        return
+    fi
+
+    local sub_kb=0 hit kb
+    while IFS= read -r -d '' hit; do
+        kb="$(dir_size_kb "$hit")"
+        sub_kb=$((sub_kb + kb))
+        printf "  %s%-12s%s %s\n" "$C_DIM" "$(human_size "$kb")" "$C_RESET" "$hit"
+        [[ "$FORCE" -eq 1 ]] && rm -rf "$hit"
+    done < <(find "${roots[@]}" -maxdepth 3 -type d -name "$find_name" -prune -print0 2>/dev/null)
+
+    total_kb=$((total_kb + sub_kb))
+
+    if [[ "$sub_kb" -eq 0 ]]; then
+        echo "  ${C_DIM}none found${C_RESET}"
+    else
+        printf "  %ssubtotal: %s%s\n" "$C_BOLD" "$(human_size "$sub_kb")" "$C_RESET"
+        [[ "$FORCE" -eq 0 ]] && echo "  ${C_DIM}(delete with --force)${C_RESET}"
+    fi
+}
+
+echo "${C_BOLD}disk-cleanup${C_RESET} — $([[ "$FORCE" -eq 1 ]] && echo "${C_RED}FORCE (deleting)${C_RESET}" || echo "${C_GREEN}dry-run${C_RESET}")"
+
+os="$(uname -s)"
+
+# --- Menedżery pakietów: npm / yarn / pnpm / bun / brew / docker (grupa: pkg) ---
+if want_group pkg; then
+    section "Package managers"
+
+    if has_cmd npm; then
+        # `npm cache verify` zamiast `clean --force`: npm@5+ ma samonaprawiający się
+        # cache, więc verify usuwa tylko nieużywane/uszkodzone wpisy i kompresuje
+        # resztę, zamiast kasować wszystko. Bezpieczniejsze, ale odzyskuje mniej —
+        # dlatego NIE pokazujemy rozmiaru całego katalogu cache jako "do odzyskania"
+        # (byłby mylący). Raportujemy 0 KB i sam fakt weryfikacji.
+        report_size "npm cache verify" "npm cache verify" 0
+    fi
+
+    if has_cmd yarn; then
+        report "yarn cache" "yarn cache clean" "$(yarn cache dir 2>/dev/null)"
+    fi
+
+    if has_cmd pnpm; then
+        report "pnpm store" "pnpm store prune" "$(pnpm store path 2>/dev/null)"
+    fi
+
+    if has_cmd bun; then
+        report "bun cache" "bun pm cache rm" "$HOME/.bun/install/cache"
+    fi
+
+    if has_cmd brew; then
+        # Rozmiar bierzemy WPROST od brew (linia "would free" z dry-run), nie z du
+        # na brew --cache — bo `brew cleanup` usuwa tylko część katalogu cache.
+        # --prune=all czyści też cały cache pobrań, więc raport = realny odzysk.
+        brew_kb=$(brew cleanup --prune=all -s --dry-run 2>/dev/null \
+            | grep -i "would free" | brew_size_to_kb)
+        report_size "brew cleanup" "brew cleanup --prune=all -s" "${brew_kb:-0}"
+    fi
+
+    if has_cmd docker && docker info >/dev/null 2>&1; then
+        report "docker prune" "docker system prune -af" ""
+    elif has_cmd docker; then
+        echo "  ${C_DIM}docker: daemon not running, skipped${C_RESET}"
+    fi
+fi
+
+# --- Cache systemowe macOS (grupa: macos) ---
+# Uwaga: NIE czyścimy hurtem całego ~/Library/Caches — to worek zawierający m.in.
+# Homebrew, pip i Playwright (liczone osobno powyżej) oraz cache aplikacji, które
+# bywają potrzebne. Bierzemy tylko konkretne, znane katalogi deweloperskie.
+if want_group macos && [[ "$os" == "Darwin" ]]; then
+    section "macOS caches"
+
+    if [[ -d "$HOME/Library/Developer/Xcode/DerivedData" ]]; then
+        report "Xcode DerivedData" "rm -rf \"$HOME/Library/Developer/Xcode/DerivedData\"/*" \
+            "$HOME/Library/Developer/Xcode/DerivedData"
+    fi
+
+    if [[ -d "$HOME/Library/Caches/CocoaPods" ]]; then
+        report "CocoaPods cache" "rm -rf \"$HOME/Library/Caches/CocoaPods\"" \
+            "$HOME/Library/Caches/CocoaPods"
+    fi
+
+    if [[ ! -d "$HOME/Library/Developer/Xcode/DerivedData" && ! -d "$HOME/Library/Caches/CocoaPods" ]]; then
+        echo "  ${C_DIM}no Xcode/CocoaPods caches found${C_RESET}"
+    fi
+fi
+
+# --- Inne dev cache (grupa: dev) ---
+if want_group dev; then
+    section "Dev caches"
+
+    if has_cmd pip3; then
+        # Pytamy pip o właściwy katalog (macOS vs Linux vs XDG_CACHE_HOME) — inaczej
+        # sumowanie dwóch ścieżek dublowałoby rozmiar przy symlinku.
+        report "pip cache" "pip3 cache purge" "$(pip3 cache dir 2>/dev/null)"
+    fi
+
+    if has_cmd go; then
+        report "go build cache" "go clean -cache" "$(go env GOCACHE 2>/dev/null)"
+    fi
+
+    if [[ -d "$HOME/.cargo/registry" ]]; then
+        report "cargo registry" "rm -rf \"$HOME/.cargo/registry/cache\" \"$HOME/.cargo/registry/src\"" \
+            "$HOME/.cargo/registry/cache" "$HOME/.cargo/registry/src"
+    fi
+
+    if [[ -d "$HOME/.gradle/caches" ]]; then
+        report "gradle caches" "rm -rf \"$HOME/.gradle/caches\"" "$HOME/.gradle/caches"
+    fi
+
+    if [[ -d "$HOME/Library/Caches/ms-playwright" ]]; then
+        report "Playwright browsers" "rm -rf \"$HOME/Library/Caches/ms-playwright\"" \
+            "$HOME/Library/Caches/ms-playwright"
+    fi
+
+    if [[ -d "$HOME/.cache/puppeteer" ]]; then
+        report "Puppeteer browsers" "rm -rf \"$HOME/.cache/puppeteer\"" "$HOME/.cache/puppeteer"
+    fi
+fi
+
+# --- node_modules (grupa: node; per-projekt w PROJECTS_GLOB) ---
+if want_group node; then
+    section "node_modules in $PROJECTS_GLOB"
+    scan_projects node_modules
+fi
+
+# --- .next (grupa: next; cache buildu Next.js, per-projekt) ---
+if want_group next; then
+    section ".next in $PROJECTS_GLOB"
+    scan_projects .next
+fi
+
+# --- Podsumowanie ---
+echo
+if [[ "$FORCE" -eq 1 ]]; then
+    echo "${C_BOLD}${C_GREEN}Freed: ~$(human_size "$total_kb")${C_RESET}"
+else
+    echo "${C_BOLD}Reclaimable: ~$(human_size "$total_kb")${C_RESET}"
+    echo "${C_DIM}Run with --force to delete.${C_RESET}"
+fi

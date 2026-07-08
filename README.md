@@ -42,6 +42,7 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 
 ### File & System
 
+- `disk-cleanup` — Free up disk space by clearing caches (npm, brew, docker, yarn/pnpm/bun, system & dev caches, and `node_modules` / `.next` under `~/projects*`); dry-run by default, `--force` to delete, `--group <pkg\|js\|macos\|dev\|node\|next>` to analyze one group
 - `group-images-by-exif-tag` — Group images by EXIF tag value (e.g., FocalLength, ISO, etc., requires `exiftool`)
 - `kill-port <port>` — Kill process running on port
 - `self-destruct` — Remove all files from current directory
@@ -59,6 +60,15 @@ agents
 ```
 
 ![](demo/agents.gif)
+
+### `disk-cleanup`
+
+```bash
+disk-cleanup
+disk-cleanup --group pkg
+```
+
+![](demo/disk-cleanup.gif)
 
 ### `group-images-by-exif-tag`
 
