@@ -27,7 +27,6 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 
 ### Scaffolding
 
-- `new-cli-app <name>` — Create new CLI app
 - `new-guide <name>` — Create new guide
 - `new-macos-app <name>` — Create new macOS app
 - `new-project <name>` — Create new project
