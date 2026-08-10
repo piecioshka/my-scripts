@@ -2,6 +2,7 @@
 
 All notable changes to this project, newest first.
 
+- 2026-08-10 — Removed `new-cli-app`: the `template-cli-app` repository it scaffolded from no longer exists. ([`2684bd2`])
 - 2026-07-08 — Added `disk-cleanup`: frees up disk space by clearing caches (npm, brew, docker, yarn/pnpm/bun, system and dev caches) and `node_modules` / `.next` directories under `~/projects*`; dry-run by default, `--force` to delete, `--group <pkg|js|macos|dev|node|next>` to analyze a single group. Ships with a recorded `vhs` demo. ([`68afc13`])
 - 2026-06-25 — Changed the license link in `README.md` to use `https://`. ([#3], [`d35e409`])
 - 2026-06-20 — Added a `LICENSE` file with the MIT License. ([#2], [`f028554`])
@@ -72,3 +73,4 @@ All notable changes to this project, newest first.
 [`f028554`]: https://github.com/piecioshka/my-scripts/commit/f028554ef47a5bc6baee8555d240194e1d22b077
 [`d35e409`]: https://github.com/piecioshka/my-scripts/commit/d35e4099a37b214c3447c09b88fdadcf68bcce2e
 [`68afc13`]: https://github.com/piecioshka/my-scripts/commit/68afc13e6bdcd7113d365c537658d4b9e3eefc39
+[`2684bd2`]: https://github.com/piecioshka/my-scripts/commit/2684bd29758e4ffa784e4dc18a631bf47dd1aac6
