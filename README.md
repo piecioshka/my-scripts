@@ -87,6 +87,19 @@ echo "https://github.com" | url-check
 
 ![](demo/url-check.gif)
 
+#### Recipe: check whether subdomains are alive
+
+[crt.name](https://crt.name) returns subdomains found in Certificate Transparency logs as plain text, one name per line. Add a scheme to each line and pipe it into `url-check`:
+
+```bash
+curl -s "https://crt.name/v1/search?apex=example.org" \
+  | sed 's|^|https://|' \
+  | url-check
+```
+
+- `sed 's|^|https://|'` turns bare names into URLs - `url-check` only picks up lines matching `https?://`.
+- A `FAIL 000` means the request never completed (DNS does not resolve, connection refused, TLS error, timeout) - that is the usual signal for a dead subdomain.
+
 ## License
 
 [The MIT License](https://piecioshka.mit-license.org) @ 2026
