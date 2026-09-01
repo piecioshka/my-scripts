@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# Usage:
+#   orphan-files-report                           # scan subdirectories of the current directory
+#   orphan-files-report ~/projects ~/work         # scan subdirectories of the given directories
+#   orphan-files-report --md                      # keep the Markdown report as well
+#   orphan-files-report --json                    # keep the raw JSON data as well
+#   orphan-files-report -o tmp/scan               # output path prefix (default: tmp/<timestamp>_orphan-files-report)
+#   orphan-files-report --title "My workspace"    # heading used in the report
+#   orphan-files-report --help                    # show help
+#
+# Runs `orphan-files` on every subdirectory and aggregates the results into a
+# single workspace report. Writes a PDF by default; --md and --json additionally
+# keep the Markdown and JSON the PDF is built from.
+# Requires: node, npx, jq. The PDF is rendered with `npx md-to-pdf`.
+# Exit code: 0 when no unused files were found, 1 when at least one project has them.
+
+set -u
+
+OUT_PREFIX=""
+TITLE=""
+KEEP_MD=0
+KEEP_JSON=0
+declare -a ROOTS=()
+
+show_usage() {
+    sed -n '2,/^$/p' "$0" | sed -E 's/^# ?//'
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o|--out)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --out requires a path" >&2; exit 1; }
+            OUT_PREFIX="$2"; shift 2 ;;
+        --title)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --title requires a value" >&2; exit 1; }
+            TITLE="$2"; shift 2 ;;
+        --md)
+            KEEP_MD=1; shift ;;
+        --json)
+            KEEP_JSON=1; shift ;;
+        -h|--help)
+            show_usage; exit 0 ;;
+        -*)
+            echo "Unknown argument: $1 (use --help)" >&2; exit 1 ;;
+        *)
+            ROOTS+=("$1"); shift ;;
+    esac
+done
+
+[[ ${#ROOTS[@]} -eq 0 ]] && ROOTS=(".")
+
+# Resolve roots to absolute paths up front, so the report says where it looked
+# rather than recording a "." that means nothing once the file is moved around.
+for i in "${!ROOTS[@]}"; do
+    if [[ ! -d "${ROOTS[$i]}" ]]; then
+        echo "ERROR: not a directory: ${ROOTS[$i]}" >&2
+        exit 1
+    fi
+    ROOTS[i]="$(cd "${ROOTS[$i]}" && pwd)"
+done
+
+for tool in node npx jq; do
+    command -v "$tool" > /dev/null 2>&1 || { echo "ERROR: '$tool' is required but not installed" >&2; exit 1; }
+done
+
+# Resolve `orphan-files` once instead of paying npx's registry lookup per project.
+if command -v orphan-files > /dev/null 2>&1; then
+    declare -a SCANNER=("orphan-files")
+else
+    echo "Fetching orphan-files..."
+    npx --yes orphan-files --version > /dev/null 2>&1 \
+        || { echo "ERROR: could not run 'orphan-files' (install it or check your network)" >&2; exit 1; }
+    declare -a SCANNER=("npx" "--yes" "orphan-files")
+fi
+
+# The PDF is part of every report, so fail now rather than after a long scan.
+npx --yes md-to-pdf --version > /dev/null 2>&1 \
+    || { echo "ERROR: could not run 'md-to-pdf', which every report needs for its PDF" >&2; exit 1; }
+
+# colors (tty only)
+if [[ -t 1 ]]; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'
+    C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_DIM=$'\033[90m'
+else
+    C_RESET=""; C_BOLD=""; C_GREEN=""; C_YELLOW=""; C_DIM=""
+fi
+
+timestamp="$(date +%Y-%m-%d_%H-%M)"
+[[ -z "$OUT_PREFIX" ]] && OUT_PREFIX="tmp/${timestamp}_orphan-files-report"
+[[ -z "$TITLE" ]] && TITLE="$(basename "${ROOTS[0]}")"
+
+mkdir -p "$(dirname "$OUT_PREFIX")"
+
+json_path="${OUT_PREFIX}.json"
+md_path="${OUT_PREFIX}.md"
+
+# Collect every immediate subdirectory of every root, skipping dot-directories.
+declare -a projects=()
+for root in "${ROOTS[@]}"; do
+    while IFS= read -r dir; do
+        projects+=("$dir")
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort)
+done
+
+if [[ ${#projects[@]} -eq 0 ]]; then
+    echo "No subdirectories found in: ${ROOTS[*]}" >&2
+    exit 1
+fi
+
+echo "${C_BOLD}Scanning ${#projects[@]} projects...${C_RESET}"
+
+# One JSON object per project, streamed into a temporary file and aggregated at
+# the end. Keeping the raw results lets the Markdown and JSON reports agree.
+raw="$(mktemp)"
+trap 'rm -f "$raw"' EXIT
+
+for dir in "${projects[@]}"; do
+    name="$(basename "$dir")"
+    printf "%s==>%s %-40s " "$C_DIM" "$C_RESET" "$name"
+
+    # `orphan-files` exits 1 when it finds unused files, so the exit code says
+    # nothing about whether the scan itself succeeded - judge that by the JSON.
+    output="$("${SCANNER[@]}" "$dir" --format json 2> /dev/null)"
+
+    if [[ -z "$output" ]] || ! jq -e . > /dev/null 2>&1 <<< "$output"; then
+        printf "%sskipped%s (scan failed)\n" "$C_DIM" "$C_RESET"
+        jq -n --arg name "$name" --arg path "$dir" \
+            '{name: $name, path: $path, status: "error", reason: "scan failed"}' >> "$raw"
+        continue
+    fi
+
+    total="$(jq -r '.totalFiles' <<< "$output")"
+
+    if [[ "$total" -eq 0 ]]; then
+        printf "%sskipped%s (no JS/TS)\n" "$C_DIM" "$C_RESET"
+        jq -n --arg name "$name" --arg path "$dir" \
+            '{name: $name, path: $path, status: "skipped", reason: "no JS/TS"}' >> "$raw"
+        continue
+    fi
+
+    unused="$(jq -r '.unusedCount' <<< "$output")"
+    if [[ "$unused" -gt 0 ]]; then
+        printf "%s%s unused%s\n" "$C_YELLOW" "$unused" "$C_RESET"
+    else
+        printf "%sclean%s\n" "$C_GREEN" "$C_RESET"
+    fi
+
+    jq --arg name "$name" --arg path "$dir" \
+        '{name: $name, path: $path, status: "scanned"} + .' <<< "$output" >> "$raw"
+done
+
+# Passed as JSON rather than a joined string, so paths containing spaces survive.
+roots_json="$(printf '%s\n' "${ROOTS[@]}" | jq -R . | jq -s .)"
+
+jq -s \
+    --arg title "$TITLE" \
+    --arg createdAt "$(date '+%Y-%m-%d %H:%M')" \
+    --argjson roots "$roots_json" \
+    '{
+        title: $title,
+        createdAt: $createdAt,
+        roots: $roots,
+        summary: {
+            scanned: [.[] | select(.status == "scanned")] | length,
+            skipped: [.[] | select(.status != "scanned")] | length,
+            withUnused: [.[] | select((.unusedCount // 0) > 0)] | length,
+            unusedFiles: [.[] | .unusedCount // 0] | add,
+            reclaimableBytes: [.[] | .reclaimableBytes // 0] | add
+        },
+        projects: .
+    }' "$raw" > "$json_path"
+
+node - "$json_path" "$md_path" <<'NODE'
+import fs from "fs";
+
+const [, , jsonPath, mdPath] = process.argv;
+const data = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+
+const humanSize = (bytes) => {
+    if (!bytes) return "—";
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+};
+
+const scanned = data.projects.filter((p) => p.status === "scanned");
+const skipped = data.projects.filter((p) => p.status !== "scanned");
+const dirty = scanned.filter((p) => p.unusedCount > 0);
+
+const lines = [];
+lines.push(`# Unused files report — ${data.title}`);
+lines.push("");
+lines.push(`**Created:** ${data.createdAt}  `);
+lines.push("**Generated by:** `orphan-files`  ");
+lines.push(`**Source:** ${data.roots.join(", ")}`);
+lines.push("");
+lines.push("## Summary");
+lines.push("");
+lines.push(
+    `- Scanned: **${data.summary.scanned}** projects with JS/TS (${data.summary.skipped} skipped)`,
+);
+lines.push(`- Projects with unused files: **${data.summary.withUnused}**`);
+lines.push(
+    `- Total unused files: **${data.summary.unusedFiles}** (~${humanSize(data.summary.reclaimableBytes)} reclaimable)`,
+);
+lines.push("");
+
+if (scanned.length > 0) {
+    lines.push("| Project | Files | Unused | Reclaimable | Status |");
+    lines.push("|---|--:|--:|--:|---|");
+    for (const project of scanned) {
+        const label =
+            project.unusedCount > 0
+                ? `[${project.name}](#${project.name})`
+                : project.name;
+        lines.push(
+            `| ${label} | ${project.totalFiles} | ${project.unusedCount} | ${humanSize(project.reclaimableBytes)} | ${project.unusedCount > 0 ? "⚠️" : "✅"} |`,
+        );
+    }
+    lines.push("");
+}
+
+if (dirty.length > 0) {
+    lines.push("---");
+    lines.push("");
+    lines.push("## Details — projects with unused files");
+    lines.push("");
+    for (const project of dirty) {
+        lines.push(`<a id="${project.name}"></a>`);
+        lines.push("");
+        lines.push(
+            `### ⚠️ ${project.name} — ${project.unusedCount} unused (${project.totalFiles} files, ${humanSize(project.reclaimableBytes)})`,
+        );
+        lines.push("");
+        lines.push("```");
+        lines.push(...project.unusedFiles);
+        lines.push("```");
+        lines.push("");
+    }
+}
+
+if (skipped.length > 0) {
+    lines.push("## Skipped projects");
+    lines.push("");
+    for (const project of skipped) {
+        lines.push(`- ${project.name} (${project.reason})`);
+    }
+    lines.push("");
+}
+
+lines.push("---");
+lines.push("");
+lines.push(
+    "_Report generated by [orphan-files](https://github.com/piecioshka/orphan-files)_",
+);
+lines.push("");
+
+fs.writeFileSync(mdPath, lines.join("\n"));
+NODE
+
+# Read the verdict before the intermediates are cleaned up below.
+with_unused="$(jq -r '.summary.withUnused' "$json_path")"
+
+if ! npx --yes md-to-pdf "$md_path" < /dev/null; then
+    echo "ERROR: PDF generation failed (npx md-to-pdf)" >&2
+    echo "Kept $md_path and $json_path so the scan is not lost." >&2
+    exit 1
+fi
+
+# The Markdown and JSON are what the PDF is built from; keep them only on request.
+[[ "$KEEP_MD" -eq 1 ]] || rm -f "$md_path"
+[[ "$KEEP_JSON" -eq 1 ]] || rm -f "$json_path"
+
+echo ""
+echo "${C_BOLD}PDF:${C_RESET}    ${OUT_PREFIX}.pdf"
+[[ "$KEEP_MD" -eq 1 ]] && echo "${C_BOLD}Report:${C_RESET} $md_path"
+[[ "$KEEP_JSON" -eq 1 ]] && echo "${C_BOLD}Data:${C_RESET}   $json_path"
+[[ "$with_unused" -gt 0 ]] && exit 1
+exit 0

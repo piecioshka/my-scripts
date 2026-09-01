@@ -36,6 +36,7 @@ set -gx PATH $HOME/projects/my-scripts/bin/ $PATH
 ### Automation & Workflow
 
 - `npm-release-package` — Release package to npm registry + Push tags to origin + Synchronize with GitHub
+- `orphan-files-report` — Run [`orphan-files`](https://github.com/piecioshka/orphan-files) on every subdirectory and aggregate the results into one workspace report as a PDF (`--md` / `--json` keep those formats too)
 - `run-on-each-dir` — Run command on each directory
 - `run-x-times` — Run command x times
 
@@ -99,6 +100,33 @@ curl -s "https://crt.name/v1/search?apex=example.org" \
 
 - `sed 's|^|https://|'` turns bare names into URLs - `url-check` only picks up lines matching `https?://`.
 - A `FAIL 000` means the request never completed (DNS does not resolve, connection refused, TLS error, timeout) - that is the usual signal for a dead subdomain.
+
+## Recipes
+
+### `orphan-files-report` — unused files across a whole workspace
+
+`orphan-files` scans a single project. To get one report for every project in a workspace, run the aggregator from the directory holding them:
+
+```bash
+cd ~/projects
+orphan-files-report --title "projects"
+```
+
+The result is `tmp/<timestamp>_orphan-files-report.pdf`: a summary table of every project, per-project lists of unused files, and a section listing the projects that were skipped because they contain no JS/TS. Paths in the report are absolute, so it still says where it looked once the file is moved elsewhere.
+
+The PDF is built from a Markdown file and the raw JSON data, both discarded once it is rendered. Add `--md` or `--json` to keep them:
+
+```bash
+orphan-files-report --md --json
+```
+
+Several workspaces at once:
+
+```bash
+orphan-files-report ~/projects ~/work --title "all code"
+```
+
+The exit code is `1` when at least one project has unused files, so it also works as a check in a larger script.
 
 ## License
 
