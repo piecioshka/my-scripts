@@ -2,6 +2,7 @@
 
 All notable changes to this project, newest first.
 
+- 2026-09-04 — Changed `what-happened` to show colored output: `git` no longer writes to a terminal under `watch`, so it is now forced with `-c color.status=always` (`watch --color` already interpreted the codes).
 - 2026-09-01 — Added `orphan-files-report`: runs `orphan-files` on every subdirectory of the given directories and aggregates the results into one workspace report, rendered as a PDF with `md-to-pdf`; `--md` and `--json` additionally keep the Markdown and JSON it is built from. Reports a summary table, per-project lists of unused files and the projects skipped for having no JS/TS, records every path as absolute, and exits `1` when any project has unused files.
 - 2026-08-10 — Removed `new-cli-app`: the `template-cli-app` repository it scaffolded from no longer exists. ([`2684bd2`])
 - 2026-07-08 — Added `disk-cleanup`: frees up disk space by clearing caches (npm, brew, docker, yarn/pnpm/bun, system and dev caches) and `node_modules` / `.next` directories under `~/projects*`; dry-run by default, `--force` to delete, `--group <pkg|js|macos|dev|node|next>` to analyze a single group. Ships with a recorded `vhs` demo. ([`68afc13`])
